@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Stylized tactical crosshair / chevron -->
+    <path
+        android:fillColor="#C5A16C"
+        android:pathData="M54,28 L72,46 L66,52 L54,40 L42,52 L36,46 Z" />
+    <path
+        android:fillColor="#C5A16C"
+        android:pathData="M54,48 L72,66 L66,72 L54,60 L42,72 L36,66 Z" />
+</vector>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="theme-color" content="#171d1b">
+  <meta name="description" content="PROJECT FRONTLINE — мобильный 3D FPS-прототип">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/game.css">
+  <title>PROJECT FRONTLINE — 0.2</title>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./js/three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div id="loading" role="status" aria-live="polite">
+    <div class="load-mark">PF</div>
+    <div class="load-title">PROJECT <span>FRONTLINE</span></div>
+    <div class="load-sub">ПОДГОТОВКА ПОЛЯ БОЯ</div>
+    <div class="load-bar"><i></i></div>
+    <small id="loading-status">Загрузка 3D-движка…</small>
+  </div>
+
+  <div id="start-screen" class="overlay">
+    <div class="panel start-panel">
+      <div class="eyebrow">TACTICAL COMBAT SIMULATION</div>
+      <h1>PROJECT<br><span>FRONTLINE</span></h1>
+      <p class="subtitle">Деревня · Три точки · Командный бой</p>
+      <div class="setup-row"><label for="team-size">БОЙЦОВ В КОМАНДЕ</label>
+        <select id="team-size"><option selected>6</option><option>10</option><option>16</option><option>24</option><option>32</option></select>
+      </div>
+      <div class="setup-row"><label for="bot-difficulty">СЛОЖНОСТЬ ПРОТИВНИКА</label>
+        <select id="bot-difficulty"><option value="0.7">Новичок</option><option value="1" selected>Обычная</option><option value="1.35">Опытная</option></select>
+      </div>
+      <div class="device-note">Для Samsung A32 рекомендуется 6–10 бойцов на команду.</div>
+      <button id="start-btn" class="primary-button">НАЧАТЬ ОПЕРАЦИЮ</button>
+      <div class="hint">Телефон: левый джойстик — движение, правая часть экрана — обзор. Кнопки справа — бой и действия.</div>
+    </div>
+  </div>
+
+  <div id="hud">
+    <div class="topbar">
+      <div class="team-score blue"><b>СИНИЕ</b><strong id="blue-score">0</strong></div>
+      <div class="objective"><div id="point-status">ЗАХВАТ ТОЧЕК</div><div class="points"><span id="pA">A</span><span id="pB">B</span><span id="pC">C</span></div></div>
+      <div class="team-score red"><b>КРАСНЫЕ</b><strong id="red-score">0</strong></div>
+    </div>
+    <div class="top-right"><span id="alive-count">6 × 6</span><span id="fps">-- FPS</span></div>
+    <div id="crosshair"><i></i><b></b></div>
+    <div class="bottom-left">
+      <div class="health-line"><span>СОСТОЯНИЕ</span><strong id="health-num">100</strong></div>
+      <div class="health-track"><i id="health-fill"></i></div>
+      <div id="injury-state">СТАБИЛЬНО</div>
+    </div>
+    <div class="bottom-center">
+      <div id="weapon-name">АК-74</div>
+      <div class="ammo"><strong id="ammo">30</strong><span>/</span><span id="reserve">120</span></div>
+      <div class="weapon-slots">
+        <button data-weapon="ak" class="weapon-slot selected">1 АК</button>
+        <button data-weapon="shotgun" class="weapon-slot">2 ДРОБ</button>
+        <button data-weapon="sniper" class="weapon-slot">3 СВ</button>
+        <button data-weapon="pistol" class="weapon-slot">4 ПМ</button>
+      </div>
+    </div>
+    <div class="bottom-right">
+      <button class="action" id="reload-btn" aria-label="Перезарядить">⟳<small>ЗАРЯД</small></button>
+      <button class="action" id="bandage-btn" aria-label="Использовать бинт">✚<small>БИНТ <span id="bandage-count">3</span></small></button>
+    </div>
+    <div id="hit-indicator"></div>
+    <div id="message"></div>
+    <div id="mobile-controls">
+      <div id="joystick" aria-label="Движение"><div id="stick"></div></div>
+      <div class="mobile-actions">
+        <button id="aim-btn">ПРИЦЕЛ</button>
+        <button id="fire-btn" class="fire">ОГОНЬ</button>
+        <button id="jump-btn">ПРЫЖОК</button>
+        <button id="crouch-btn">ПРИСЕСТЬ</button>
+        <button id="frag-btn">ОСКОЛОК <span id="frag-count">2</span></button>
+        <button id="smoke-btn">ДЫМ <span id="smoke-count">2</span></button>
+      </div>
+    </div>
+    <div id="desktop-help">WASD — движение · Shift — бег · мышь — обзор · ЛКМ — огонь · ПКМ — прицел · R — заряд · G — осколок · T — дым · Space — прыжок · C — присесть</div>
+  </div>
+
+  <div id="pause-screen" class="overlay hidden">
+    <div class="panel pause-panel"><div class="eyebrow">ОПЕРАЦИЯ ПРИОСТАНОВЛЕНА</div><h2>ПАУЗА</h2>
+      <button id="resume-btn" class="primary-button">ПРОДОЛЖИТЬ</button>
+      <button id="restart-btn" class="secondary-button">ЗАНОВО</button>
+    </div>
+  </div>
+
+  <div id="end-screen" class="overlay hidden">
+    <div class="panel pause-panel"><div class="eyebrow">ОПЕРАЦИЯ ЗАВЕРШЕНА</div><h2 id="end-title">ПОБЕДА</h2>
+      <p id="end-detail">Команда выполнила задачу.</p>
+      <button id="end-restart-btn" class="primary-button">НОВАЯ ОПЕРАЦИЯ</button>
+    </div>
+  </div>
+
+  <script type="module">
+    const loading = document.getElementById('loading');
+    const status = document.getElementById('loading-status');
+    try {
+      status.textContent = 'Загрузка игровых модулей…';
+      await import('./js/main.js');
+    } catch (error) {
+      console.error('PROJECT FRONTLINE startup error:', error);
+      loading.classList.add('load-error');
+      loading.innerHTML = `
+        <div class="load-mark error-mark">!</div>
+        <div class="load-title">НЕ УДАЛОСЬ ЗАПУСТИТЬ ИГРУ</div>
+        <p class="error-copy">Проверь подключение к интернету и поддержку WebGL в браузере.</p>
+        <pre class="error-detail"></pre>
+        <button class="primary-button retry-button" onclick="location.reload()">ПОВТОРИТЬ</button>
+      `;
+      loading.querySelector('.error-detail').textContent = String(error?.message || error).slice(0, 500);
+    }
+  </script>
+</body>
+</html>
