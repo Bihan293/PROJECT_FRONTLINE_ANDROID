@@ -12,13 +12,13 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
-import androidx.webkit.WebViewClientCompat;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
@@ -97,7 +97,7 @@ public class MainActivity extends AppCompatActivity {
                 .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
-        webView.setWebViewClient(new WebViewClientCompat() {
+        webView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 WebResourceResponse response = assetLoader.shouldInterceptRequest(request.getUrl());
@@ -124,11 +124,6 @@ public class MainActivity extends AppCompatActivity {
             public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
                 Log.e(TAG, "Render process gone. didCrash: " + detail.didCrash());
                 return true; // Prevents the host application from terminating
-            }
-
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                Log.e(TAG, "WebView error: " + error.getDescription());
             }
         });
 
