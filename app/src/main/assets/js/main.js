@@ -13,19 +13,26 @@ const isMobile = matchMedia('(pointer: coarse)').matches;
 let renderer;
 try {
   renderer = new THREE.WebGLRenderer({
-    antialias: !isMobile,
+    antialias: false,
     alpha: false,
-    powerPreference: 'high-performance',
+    powerPreference: 'default',
     stencil: false,
-    depth: true
+    depth: true,
+    failIfMajorPerformanceCaveat: false
   });
 } catch (error) {
-  throw new Error('Браузер не смог создать WebGL-контекст. Обнови Chrome и проверь, включено ли аппаратное ускорение. ' + error.message);
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: false });
+  } catch (e2) {
+    throw new Error('Браузер не смог создать WebGL-контекст. ' + (error?.message || error));
+  }
 }
 
-const pixelRatio = Math.min(devicePixelRatio || 1, isMobile ? CONFIG.performance.mobilePixelRatio : CONFIG.performance.desktopPixelRatio);
+const width = window.innerWidth || document.documentElement.clientWidth || 800;
+const height = window.innerHeight || document.documentElement.clientHeight || 450;
+const pixelRatio = Math.min(window.devicePixelRatio || 1, isMobile ? CONFIG.performance.mobilePixelRatio : CONFIG.performance.desktopPixelRatio);
 renderer.setPixelRatio(pixelRatio);
-renderer.setSize(innerWidth, innerHeight);
+renderer.setSize(width, height);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.05;
@@ -33,7 +40,7 @@ renderer.shadowMap.enabled = !isMobile && CONFIG.performance.mobileShadows;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-const camera = new THREE.PerspectiveCamera(78, innerWidth / innerHeight, .08, 240);
+const camera = new THREE.PerspectiveCamera(78, (width / height) || (16 / 9), .08, 240);
 scene.add(camera);
 const zones = buildWorld();
 const raycaster = new THREE.Raycaster();

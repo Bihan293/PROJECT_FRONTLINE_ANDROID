@@ -99,6 +99,18 @@
     </div>
   </div>
 
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error('Frontline Error:', e.message, e.filename, e.lineno);
+      var status = document.getElementById('loading-status');
+      if (status) status.textContent = 'Ошибка: ' + (e.message || 'Сбой скрипта');
+    });
+    window.addEventListener('unhandledrejection', function(e) {
+      console.error('Frontline Promise Rejection:', e.reason);
+      var status = document.getElementById('loading-status');
+      if (status) status.textContent = 'Ошибка: ' + (e.reason?.message || e.reason || 'Сбой модуля');
+    });
+  </script>
   <script type="module">
     const loading = document.getElementById('loading');
     const status = document.getElementById('loading-status');

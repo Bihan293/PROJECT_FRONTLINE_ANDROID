@@ -1,22 +1,33 @@
 package com.projectfrontline.game;
 
 import android.annotation.SuppressLint;
-import android.os.Build;
 import android.os.Bundle;
-import android.view.View;
-import android.view.WindowInsets;
-import android.view.WindowInsetsController;
+import android.util.Log;
 import android.view.WindowManager;
+import android.webkit.ConsoleMessage;
+import android.webkit.RenderProcessGoneDetail;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.webkit.WebViewAssetLoader;
 import androidx.webkit.WebViewClientCompat;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
+    private static final String TAG = "ProjectFrontline";
     private WebView webView;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -24,10 +35,28 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Catch and log any uncaught exceptions to prevent silent crashes
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(@NonNull Thread thread, @NonNull Throwable throwable) {
+                Log.e(TAG, "Fatal crash in thread: " + thread.getName(), throwable);
+                try {
+                    File logDir = getExternalFilesDir(null);
+                    if (logDir != null) {
+                        File logFile = new File(logDir, "crash.log");
+                        PrintWriter pw = new PrintWriter(new FileWriter(logFile));
+                        throwable.printStackTrace(pw);
+                        pw.flush();
+                        pw.close();
+                    }
+                } catch (Exception ignored) {}
+            }
+        });
+
         // Keep screen on during gameplay
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        // Setup immersive fullscreen
+        // Setup immersive fullscreen safely via WindowCompat
         hideSystemUI();
 
         webView = new WebView(this);
@@ -47,9 +76,21 @@ public class MainActivity extends AppCompatActivity {
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
         settings.setSupportZoom(false);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
-        // Enable hardware acceleration for smooth 3D rendering
-        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
+        // NOTE: DO NOT call webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)!
+        // Calling LAYER_TYPE_HARDWARE on WebView crashes Mali GPUs (Samsung A32) with WebGL.
+        // WebView already uses hardware acceleration from the window.
+
+        // WebChromeClient for console logging and debugging
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage consoleMessage) {
+                Log.d(TAG, consoleMessage.message() + " ["
+                        + consoleMessage.sourceId() + ":" + consoleMessage.lineNumber() + "]");
+                return true;
+            }
+        });
 
         // Modern local asset loading via virtual https domain
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
@@ -59,7 +100,35 @@ public class MainActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClientCompat() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return assetLoader.shouldInterceptRequest(request.getUrl());
+                WebResourceResponse response = assetLoader.shouldInterceptRequest(request.getUrl());
+                if (response != null) {
+                    String url = request.getUrl().toString();
+                    if (url.endsWith(".js") || url.contains(".js?")) {
+                        response.setMimeType("text/javascript");
+                    } else if (url.endsWith(".css")) {
+                        response.setMimeType("text/css");
+                    } else if (url.endsWith(".html")) {
+                        response.setMimeType("text/html");
+                    }
+                    Map<String, String> headers = response.getResponseHeaders();
+                    if (headers == null) {
+                        headers = new HashMap<>();
+                    }
+                    headers.put("Access-Control-Allow-Origin", "*");
+                    response.setResponseHeaders(headers);
+                }
+                return response;
+            }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                Log.e(TAG, "Render process gone. didCrash: " + detail.didCrash());
+                return true; // Prevents the host application from terminating
+            }
+
+            @Override
+            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                Log.e(TAG, "WebView error: " + error.getDescription());
             }
         });
 
@@ -68,21 +137,17 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void hideSystemUI() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            final WindowInsetsController insetsController = getWindow().getInsetsController();
-            if (insetsController != null) {
-                insetsController.hide(WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars());
-                insetsController.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        try {
+            WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+            WindowInsetsControllerCompat controller =
+                    WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+            if (controller != null) {
+                controller.hide(WindowInsetsCompat.Type.systemBars());
+                controller.setSystemBarsBehavior(
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
             }
-        } else {
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                            | View.SYSTEM_UI_FLAG_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            );
+        } catch (Exception e) {
+            Log.e(TAG, "hideSystemUI error", e);
         }
     }
 

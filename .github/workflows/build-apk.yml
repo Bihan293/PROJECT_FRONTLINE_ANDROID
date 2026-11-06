@@ -38,15 +38,17 @@ jobs:
       - name: Prepare APK for Release
         run: |
           mkdir -p release-artifacts
-          cp app/build/outputs/apk/release/app-release.apk release-artifacts/PROJECT_FRONTLINE_v0.2.apk
+          cp app/build/outputs/apk/release/app-release.apk release-artifacts/PROJECT_FRONTLINE_v0.2.1.apk
+          cp release-artifacts/PROJECT_FRONTLINE_v0.2.1.apk release-artifacts/PROJECT_FRONTLINE_v0.2.apk
+          cp release-artifacts/PROJECT_FRONTLINE_v0.2.1.apk ./PROJECT_FRONTLINE_v0.2.1.apk
           cp release-artifacts/PROJECT_FRONTLINE_v0.2.apk ./PROJECT_FRONTLINE_v0.2.apk
           ls -lh release-artifacts/
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PROJECT_FRONTLINE_v0.2-apk
-          path: release-artifacts/PROJECT_FRONTLINE_v0.2.apk
+          name: PROJECT_FRONTLINE_v0.2.1-apk
+          path: release-artifacts/PROJECT_FRONTLINE_v0.2.1.apk
           retention-days: 14
 
       - name: Determine Release Tag
@@ -55,7 +57,7 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
           else
-            TAG="v0.2"
+            TAG="v0.2.1"
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
@@ -65,21 +67,22 @@ jobs:
           tag_name: ${{ steps.release_info.outputs.tag }}
           name: "Project Frontline ${{ steps.release_info.outputs.tag }}"
           body: |
-            ## 🎮 Project Frontline v0.2 (Android APK)
+            ## 🎮 Project Frontline v0.2.1 (Android APK Fix)
 
             Готовый играбельный установочный файл APK для Android.
 
-            ### Что включено:
-            - ⚡ **Полная автономность:** Three.js и все игровые ассеты встроены в APK (интернет не требуется).
-            - 📱 **Оптимизация под мобильные:** Аппаратное ускорение WebView, сенсорный джойстик, мультитач-обзор, стрельба и прицел.
-            - 🎯 **Оружие и снаряжение:** АК-74, дробовик, снайперская винтовка, пистолет, осколочные и дымовые гранаты, бинты.
-            - 🚩 **Режим игры:** Захват трёх тактических точек в деревне, союзные и вражеские боты с выбором сложности.
+            ### Что исправлено в v0.2.1:
+            - 🛠 **Устранён вылет при старте на Android / Samsung Galaxy:** Отключён конфликтный `LAYER_TYPE_HARDWARE` на WebView, приводивший к крашу GPU-процесса Chromium и закрытию приложения через 0.1 секунды.
+            - 🛡 **Отказоустойчивость WebGL:** Безопасная инициализация `THREE.WebGLRenderer` с автоподбором контекста под мобильные GPU (Mali / Adreno).
+            - 📱 **Стабильный полноэкранный режим:** Безопасное управление системными панелями через `WindowInsetsControllerCompat`.
+            - 🔒 **Защита от падений:** Реализован перехватчик `onRenderProcessGone` и обработчик глобальных ошибок в JS.
 
             ### Инструкция по установке:
-            1. Скачайте файл **`PROJECT_FRONTLINE_v0.2.apk`** ниже.
-            2. На телефоне откройте загруженный файл и подтвердите установку.
+            1. Скачайте файл **`PROJECT_FRONTLINE_v0.2.1.apk`** ниже.
+            2. Откройте файл на телефоне и подтвердите обновление/установку поверх старой версии.
             3. Запустите игру.
           files: |
+            PROJECT_FRONTLINE_v0.2.1.apk
             PROJECT_FRONTLINE_v0.2.apk
           generate_release_notes: false
         env:
