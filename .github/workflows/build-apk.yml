@@ -38,17 +38,15 @@ jobs:
       - name: Prepare APK for Release
         run: |
           mkdir -p release-artifacts
-          cp app/build/outputs/apk/release/app-release.apk release-artifacts/PROJECT_FRONTLINE_v0.2.1.apk
-          cp release-artifacts/PROJECT_FRONTLINE_v0.2.1.apk release-artifacts/PROJECT_FRONTLINE_v0.2.apk
-          cp release-artifacts/PROJECT_FRONTLINE_v0.2.1.apk ./PROJECT_FRONTLINE_v0.2.1.apk
-          cp release-artifacts/PROJECT_FRONTLINE_v0.2.apk ./PROJECT_FRONTLINE_v0.2.apk
+          cp app/build/outputs/apk/release/app-release.apk release-artifacts/PROJECT_FRONTLINE_v0.3.0.apk
+          cp release-artifacts/PROJECT_FRONTLINE_v0.3.0.apk ./PROJECT_FRONTLINE_v0.3.0.apk
           ls -lh release-artifacts/
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PROJECT_FRONTLINE_v0.2.1-apk
-          path: release-artifacts/PROJECT_FRONTLINE_v0.2.1.apk
+          name: PROJECT_FRONTLINE_v0.3.0-apk
+          path: release-artifacts/PROJECT_FRONTLINE_v0.3.0.apk
           retention-days: 14
 
       - name: Determine Release Tag
@@ -57,7 +55,7 @@ jobs:
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
           else
-            TAG="v0.2.1"
+            TAG="v0.3.0"
           fi
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
@@ -65,25 +63,24 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_info.outputs.tag }}
-          name: "Project Frontline ${{ steps.release_info.outputs.tag }}"
+          name: "Project Frontline ${{ steps.release_info.outputs.tag }} (Dummy War Edition)"
           body: |
-            ## 🎮 Project Frontline v0.2.1 (Android APK Fix)
+            ## 🎮 Project Frontline v0.3.0 — Dummy War Update
 
-            Готовый играбельный установочный файл APK для Android.
+            Большое обновление анимаций, физики и визуальных эффектов:
 
-            ### Что исправлено в v0.2.1:
-            - 🛠 **Устранён вылет при старте на Android / Samsung Galaxy:** Отключён конфликтный `LAYER_TYPE_HARDWARE` на WebView, приводивший к крашу GPU-процесса Chromium и закрытию приложения через 0.1 секунды.
-            - 🛡 **Отказоустойчивость WebGL:** Безопасная инициализация `THREE.WebGLRenderer` с автоподбором контекста под мобильные GPU (Mali / Adreno).
-            - 📱 **Стабильный полноэкранный режим:** Безопасное управление системными панелями через `WindowInsetsControllerCompat`.
-            - 🔒 **Защита от падений:** Реализован перехватчик `onRenderProcessGone` и обработчик глобальных ошибок в JS.
+            ### 💥 Нововведения:
+            - 🦾 **Анатомические солдаты-манекены (Dummy War):** Полностью подвижные тела бойцов с шарнирами (бёдра, колени, ступни, торс, плечи, локти, шея, голова и оружие).
+            - 🏃 **Процедурная анимация бега:** Естественная шаговая походка с согнутыми коленями, покачиванием таза и тактической стойкой удержания оружия.
+            - 🎯 **Физический Рэгдолл (Ragdoll) при гибели:** При смерти боты падают с импульсом от выстрела или взрыва — тела отлетают, суставы гнутся, шлемы срываются при попадании в голову!
+            - 🩸 **Брызги и лужи крови:** Направленный фонтан брызг при попадании пули с образованием устойчивых пятен и луж крови на земле.
+            - 💥 **Реакция на попадание (Flinch):** Бойцы вздрагивают и отклоняются от выстрелов.
 
             ### Инструкция по установке:
-            1. Скачайте файл **`PROJECT_FRONTLINE_v0.2.1.apk`** ниже.
-            2. Откройте файл на телефоне и подтвердите обновление/установку поверх старой версии.
-            3. Запустите игру.
+            1. Скачайте **`PROJECT_FRONTLINE_v0.3.0.apk`** ниже.
+            2. Установите поверх предыдущей версии.
           files: |
-            PROJECT_FRONTLINE_v0.2.1.apk
-            PROJECT_FRONTLINE_v0.2.apk
+            PROJECT_FRONTLINE_v0.3.0.apk
           generate_release_notes: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

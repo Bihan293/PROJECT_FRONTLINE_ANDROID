@@ -130,7 +130,7 @@ export class WeaponSystem {
       raycaster.set(this.camera.getWorldPosition(new THREE.Vector3()), dir);
       raycaster.far = w.range;
       const intersections = raycaster.intersectObjects(targets, true);
-      if (intersections.length) onHit(intersections[0], w.damage);
+      if (intersections.length) onHit(intersections[0], w.damage, dir);
     }
     return true;
   }

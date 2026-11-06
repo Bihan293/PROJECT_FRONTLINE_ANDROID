@@ -1,17 +1,15 @@
 import * as THREE from 'three';
 import { isBlocked } from './world.js';
-
-const teamMaterial = (team) => new THREE.MeshStandardMaterial({
-  color: team === 1 ? 0x456c88 : 0x874338,
-  roughness: 0.92
-});
+import { createDummySoldier } from './soldier.js';
 
 export class BotSystem {
-  constructor(scene, player, teamSize, difficulty, onPlayerHit, onKill = () => {}) {
+  constructor(scene, player, teamSize, difficulty, bloodSystem, ragdollSystem, onPlayerHit, onKill = () => {}) {
     this.scene = scene;
     this.player = player;
     this.teamSize = teamSize;
     this.difficulty = difficulty;
+    this.blood = bloodSystem;
+    this.ragdolls = ragdollSystem;
     this.onPlayerHit = onPlayerHit;
     this.onKill = onKill;
     this.bots = [];
@@ -28,48 +26,37 @@ export class BotSystem {
   }
 
   spawn() {
-    const torsoGeometry = new THREE.CapsuleGeometry(.34, .72, 3, 7);
-    const headGeometry = new THREE.SphereGeometry(.22, 8, 7);
-    const weaponGeometry = new THREE.BoxGeometry(.12, .12, .82);
-    const helmetGeometry = new THREE.SphereGeometry(.235, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2);
-    const faceMaterial = new THREE.MeshStandardMaterial({ color: 0xb79a7d, roughness: 1 });
-    const weaponMaterial = new THREE.MeshStandardMaterial({ color: 0x242a27, metalness: .5, roughness: .55 });
-    const helmetBlue = new THREE.MeshStandardMaterial({ color: 0x344d60, roughness: .9 });
-    const helmetRed = new THREE.MeshStandardMaterial({ color: 0x58332f, roughness: .9 });
-
     for (const team of [1, 2]) {
       const count = team === 1 ? this.teamSize - 1 : this.teamSize;
       for (let i = 0; i < count; i++) {
-        const group = new THREE.Group();
-        const torso = new THREE.Mesh(torsoGeometry, teamMaterial(team));
-        torso.position.y = 1.12;
-        torso.castShadow = false;
-        torso.userData.hitZone = 'body';
-        group.add(torso);
-
-        const head = new THREE.Mesh(headGeometry, faceMaterial);
-        head.position.y = 1.78;
-        head.userData.hitZone = 'head';
-        group.add(head);
-
-        const helmet = new THREE.Mesh(helmetGeometry, team === 1 ? helmetBlue : helmetRed);
-        helmet.position.y = 1.91;
-        group.add(helmet);
-
-        const gun = new THREE.Mesh(weaponGeometry, weaponMaterial);
-        gun.position.set(.29, 1.28, -.28);
-        group.add(gun);
+        const soldier = createDummySoldier(team);
+        const group = soldier.root;
 
         const spawn = this.findSpawn(team);
         group.position.set(spawn.x, 0, spawn.z);
-        group.userData.bot = null;
+
         const bot = {
-          group, team, hp: 100, target: null, alive: true,
+          soldier,
+          group,
+          team,
+          hp: 100,
+          target: null,
+          alive: true,
           nextFire: performance.now() + Math.random() * 1200,
-          nextThink: 0, speed: 2.8 + Math.random() * 1.0,
-          aim: .72 + Math.random() * .2
+          nextThink: 0,
+          speed: 2.8 + Math.random() * 1.0,
+          aim: .72 + Math.random() * .2,
+          currentSpeed: 0,
+          pitch: 0
         };
-        group.userData.bot = bot;
+
+        // Attach bot metadata to all hit-zone meshes
+        group.traverse((child) => {
+          if (child.userData?.hitZone) {
+            child.userData.bot = bot;
+          }
+        });
+
         this.bots.push(bot);
         this.scene.add(group);
       }
@@ -94,15 +81,22 @@ export class BotSystem {
     const enemies = this.bots.filter((other) => other.alive && other.team !== bot.team);
     let best = null;
     let bestDistance = 58;
+
     for (const enemy of enemies) {
       const p = enemy.group.position;
       const d = Math.hypot(p.x - bot.group.position.x, p.z - bot.group.position.z);
-      if (d < bestDistance) { bestDistance = d; best = { type: 'bot', bot: enemy, position: p }; }
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = { type: 'bot', bot: enemy, position: p };
+      }
     }
+
     if (bot.team === 2) {
       const p = this.player.position;
       const d = Math.hypot(p.x - bot.group.position.x, p.z - bot.group.position.z);
-      if (d < bestDistance * 1.1 && d < 52) best = { type: 'player', position: p };
+      if (d < bestDistance * 1.1 && d < 52) {
+        best = { type: 'player', position: p };
+      }
     }
     bot.target = best;
   }
@@ -110,80 +104,146 @@ export class BotSystem {
   update(dt, now) {
     for (const bot of this.bots) {
       if (!bot.alive) continue;
+
       this.chooseTarget(bot, now);
       let target = bot.target;
+
       if (!target) {
         const rallyZ = bot.team === 1 ? -22 : 22;
         const dx = -bot.group.position.x;
         const dz = rallyZ - bot.group.position.z;
-        this.moveBot(bot, dx, dz, dt, 3.2);
+        const moving = this.moveBot(bot, dx, dz, dt, 3.2);
+        bot.soldier.update(dt, moving ? 3.2 : 0, false, 0);
         continue;
       }
+
       const p = bot.group.position;
       const t = target.position;
       const dx = t.x - p.x;
+      const dy = (target.type === 'player' ? (this.player.crouched ? 1.2 : 1.7) : 1.6) - 1.5;
       const dz = t.z - p.z;
       const distance = Math.hypot(dx, dz);
+
+      // Rotate whole body facing towards enemy
       bot.group.rotation.y = Math.atan2(-dx, -dz);
-      if (distance > 13) this.moveBot(bot, dx, dz, dt, bot.speed);
-      if (distance < 42 && now > bot.nextFire && this.lineClear(p, t)) {
-        bot.nextFire = now + (920 / this.difficulty) + Math.random() * 700;
-        const chance = bot.aim * this.difficulty * (distance < 16 ? .42 : .2);
+      bot.pitch = THREE.MathUtils.clamp(-Math.atan2(dy, distance), -0.6, 0.6);
+
+      let isMoving = false;
+      if (distance > 13) {
+        isMoving = this.moveBot(bot, dx, dz, dt, bot.speed);
+      }
+
+      // Firing logic
+      let isFiring = false;
+      if (distance < 44 && now > bot.nextFire && this.lineClear(p, t)) {
+        bot.nextFire = now + (900 / this.difficulty) + Math.random() * 650;
+        bot.soldier.triggerRecoil();
+        isFiring = true;
+
+        const chance = bot.aim * this.difficulty * (distance < 16 ? .44 : .22);
         if (Math.random() < chance) {
           if (target.type === 'player') {
-            this.onPlayerHit(5 + Math.random() * 8);
+            this.onPlayerHit(6 + Math.random() * 8);
           } else {
-            this.damageBot(target.bot, 9 + Math.random() * 10);
+            const hitDir = new THREE.Vector3(dx, dy, dz).normalize();
+            const hitPt = target.bot.group.position.clone().add(new THREE.Vector3(0, 1.2, 0));
+            this.damageBot(target.bot, 12 + Math.random() * 12, hitDir, hitPt, false);
           }
         }
       }
+
+      // Procedural limb animation update
+      bot.soldier.update(dt, isMoving ? bot.speed : 0, isFiring, bot.pitch);
     }
   }
 
   moveBot(bot, dx, dz, dt, speed) {
     const distance = Math.hypot(dx, dz);
-    if (distance < .01) return;
+    if (distance < .01) return false;
     const p = bot.group.position;
     const nx = p.x + dx / distance * speed * dt;
     const nz = p.z + dz / distance * speed * dt;
-    if (!isBlocked(nx, p.z, .38)) p.x = nx;
-    if (!isBlocked(p.x, nz, .38)) p.z = nz;
+    let moved = false;
+    if (!isBlocked(nx, p.z, .38)) { p.x = nx; moved = true; }
+    if (!isBlocked(p.x, nz, .38)) { p.z = nz; moved = true; }
+    return moved;
   }
 
-  damageBot(bot, damage) {
+  damageBot(bot, damage, impulseDir, hitPoint, isHeadshot = false) {
     if (!bot?.alive) return false;
+
     bot.hp -= damage;
+    bot.soldier.triggerFlinch();
+
+    // Spawn 3D directional blood spray
+    if (this.blood && hitPoint && impulseDir) {
+      this.blood.spray(hitPoint, impulseDir, isHeadshot ? 24 : 12, isHeadshot);
+    }
+
     if (bot.hp <= 0) {
       bot.alive = false;
-      bot.group.visible = false;
+      bot.hp = 0;
+
+      // Transform soldier into dynamic ragdoll with impact momentum
+      if (this.ragdolls) {
+        const force = impulseDir ? impulseDir.clone().multiplyScalar(Math.min(7.5, damage * 0.16)) : new THREE.Vector3(0, 1, 0);
+        this.ragdolls.spawn(bot.soldier, force, isHeadshot);
+      } else {
+        bot.group.visible = false;
+      }
+
       this.onKill(bot);
     }
     return true;
   }
 
-  hit(object, damage) {
+  hit(object, damage, dir, hitPoint) {
     let node = object;
     while (node && !node.userData?.bot) node = node.parent;
     const bot = node?.userData?.bot;
     if (!bot || !bot.alive || bot.team !== 2) return { hit: false };
+
     const headshot = object.userData?.hitZone === 'head';
-    this.damageBot(bot, damage * (headshot ? 2 : 1));
+    const effectiveDamage = damage * (headshot ? 2.5 : 1.0);
+
+    const pt = hitPoint || bot.group.position.clone().add(new THREE.Vector3(0, headshot ? 1.8 : 1.2, 0));
+    const impulse = dir || new THREE.Vector3(0, 0, -1);
+
+    this.damageBot(bot, effectiveDamage, impulse, pt, headshot);
     return { hit: true, headshot, killed: !bot.alive };
   }
 
   damageRadius(position, radius, damage) {
+    if (this.blood) {
+      this.blood.burst(position, 28);
+    }
+
     for (const bot of this.bots) {
-      if (!bot.alive || bot.team !== 2) continue;
+      if (!bot.alive) continue;
       const p = bot.group.position;
       const d = Math.hypot(p.x - position.x, p.z - position.z);
-      if (d < radius) this.damageBot(bot, damage * (1 - d / radius));
+      if (d < radius) {
+        const falloff = 1 - d / radius;
+        const blastDir = new THREE.Vector3(p.x - position.x, 1.2, p.z - position.z).normalize();
+        const hitPt = p.clone().add(new THREE.Vector3(0, 1.1, 0));
+        this.damageBot(bot, damage * falloff, blastDir.multiplyScalar(falloff * 6.5), hitPt, false);
+      }
     }
   }
 
   getTargetMeshes() {
-    return this.bots.filter((b) => b.alive && b.team === 2)
-      .flatMap((b) => b.group.children.filter((child) => child.userData.hitZone));
+    const list = [];
+    for (const b of this.bots) {
+      if (b.alive && b.team === 2) {
+        b.group.traverse((child) => {
+          if (child.userData?.hitZone) list.push(child);
+        });
+      }
+    }
+    return list;
   }
 
-  getAlive(team) { return this.bots.filter((b) => b.alive && b.team === team).length; }
+  getAlive(team) {
+    return this.bots.filter((b) => b.alive && b.team === team).length;
+  }
 }

@@ -6,6 +6,8 @@ import { WeaponSystem } from './weapons.js';
 import { BotSystem } from './bots.js';
 import { CaptureSystem } from './capture.js';
 import { GrenadeSystem } from './grenades.js';
+import { BloodSystem } from './blood.js';
+import { RagdollSystem } from './ragdoll.js';
 
 const $ = (id) => document.getElementById(id);
 const isMobile = matchMedia('(pointer: coarse)').matches;
@@ -50,6 +52,8 @@ let weapons = null;
 let bots = null;
 let capture = null;
 let grenades = null;
+let blood = null;
+let ragdolls = null;
 let running = false;
 let fireHeld = false;
 let aiming = false;
@@ -130,9 +134,13 @@ function start() {
   const difficulty = Number($('bot-difficulty').value);
   kills = 0;
   endShown = false;
+  if (!blood) blood = new BloodSystem(scene);
+  if (!ragdolls) ragdolls = new RagdollSystem(scene);
+  blood.clear();
+  ragdolls.clear();
   player = new Player(camera, renderer.domElement);
   weapons = new WeaponSystem(camera, updateWeapon, message);
-  bots = new BotSystem(scene, player, teamSize, difficulty, hitPlayer, () => { kills++; updateAlive(); });
+  bots = new BotSystem(scene, player, teamSize, difficulty, blood, ragdolls, hitPlayer, () => { kills++; updateAlive(); });
   capture = new CaptureSystem(
     zones, player, bots,
     (blue, red, points) => {
@@ -194,10 +202,12 @@ function animate() {
   capture.update(now);
   grenades.update(dt);
   weapons.update(dt);
+  if (blood) blood.update(dt);
+  if (ragdolls) ragdolls.update(dt);
 
   if (fireHeld) {
-    weapons.fire(now, raycaster, bots.getTargetMeshes(), (hit, damage) => {
-      const result = bots.hit(hit.object, damage);
+    weapons.fire(now, raycaster, bots.getTargetMeshes(), (hit, damage, dir) => {
+      const result = bots.hit(hit.object, damage, dir, hit.point);
       if (result.hit) {
         if (result.headshot) message('ПОПАДАНИЕ В ГОЛОВУ');
         else if (result.killed) message('ПРОТИВНИК УСТРАНЁН');
